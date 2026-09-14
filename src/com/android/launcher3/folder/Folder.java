@@ -215,7 +215,7 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
         if (!(item instanceof FolderInfo)) {
             return false;
         }
-        int maxDepth = PreferenceManager2.INSTANCE.get(context).getMaxFolderNestingDepthBlocking();
+        int maxDepth = PreferenceManager2.INSTANCE.get(context).getMaxFolderNestingDepthCached();
         return target.getNestingDepth() + 1 > maxDepth;
     }
 

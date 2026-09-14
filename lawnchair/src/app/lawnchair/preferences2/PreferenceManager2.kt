@@ -710,17 +710,23 @@ class PreferenceManager2 @Inject constructor(
         onSet = { reloadHelper.reloadGrid() },
     )
 
+    private val maxFolderNestingDepthKey = intPreferencesKey(name = "max_folder_nesting_depth")
+
     val maxFolderNestingDepth = preference(
-        key = intPreferencesKey(name = "max_folder_nesting_depth"),
+        key = maxFolderNestingDepthKey,
         defaultValue = 25,
     )
 
     /**
-     * Synchronous accessor for Java call sites (e.g. [com.android.launcher3.folder.Folder],
-     * [com.android.launcher3.folder.FolderIcon]) that need the current max nesting depth outside
-     * of a Composable/coroutine context.
+     * Synchronous, non-blocking accessor for Java call sites (e.g.
+     * [com.android.launcher3.folder.Folder], [com.android.launcher3.folder.FolderIcon]) that need
+     * the current max nesting depth from interactive code paths like drag-and-drop, where a
+     * blocking DataStore read (as `firstBlocking()` would do) can freeze the main thread. Reads
+     * from the always-warm [getCachedPreferences] snapshot instead, same as
+     * [getGestureForAppCached].
      */
-    fun getMaxFolderNestingDepthBlocking(): Int = maxFolderNestingDepth.firstBlocking()
+    fun getMaxFolderNestingDepthCached(): Int =
+        getCachedPreferences()[maxFolderNestingDepthKey] ?: 25
 
     val additionalFonts = preference(
         key = stringPreferencesKey(name = "additional_fonts"),
