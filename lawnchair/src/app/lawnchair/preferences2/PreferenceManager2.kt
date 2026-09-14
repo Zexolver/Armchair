@@ -725,8 +725,7 @@ class PreferenceManager2 @Inject constructor(
      * from the always-warm [getCachedPreferences] snapshot instead, same as
      * [getGestureForAppCached].
      */
-    fun getMaxFolderNestingDepthCached(): Int =
-        getCachedPreferences()[maxFolderNestingDepthKey] ?: 25
+    fun getMaxFolderNestingDepthCached(): Int = getCachedPreferences()[maxFolderNestingDepthKey] ?: 25
 
     val additionalFonts = preference(
         key = stringPreferencesKey(name = "additional_fonts"),
