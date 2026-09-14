@@ -20,6 +20,7 @@ import android.app.Application;
 import com.android.launcher3.dagger.DaggerLauncherAppComponent;
 import com.android.launcher3.dagger.LauncherAppComponent;
 import com.android.launcher3.dagger.LauncherBaseAppComponent;
+import com.android.launcher3.debug.CrashLogger;
 import com.android.launcher3.util.TraceHelper;
 
 /**
@@ -31,6 +32,9 @@ public class LauncherApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+        if (BuildConfig.DEBUG) {
+            CrashLogger.install(this);
+        }
         MainProcessInitializer.initialize(this);
     }
 
