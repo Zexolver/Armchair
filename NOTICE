@@ -1,0 +1,37 @@
+Z-Launcher
+Copyright (C) 2026 Zexolver
+
+This project is a derivative work of Lawnchair Launcher
+(https://github.com/lawnchairlauncher/lawnchair), which is itself
+partly derived from the Android Open Source Project's Launcher3.
+
+The original inherited code carries the following notices, retained here
+as required by Section 4 of the Apache License, Version 2.0, under which
+that code was originally licensed:
+
+    Copyright (c) 2005-2008, The Android Open Source Project
+    Copyright (c) 2024, Lawnchair
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+As permitted by Apache License 2.0 Section 4, this combined and modified
+work ("Z-Launcher") as a whole is distributed under the terms of the
+GNU General Public License, Version 3 or later (see LICENSE). The
+Apache License, Version 2.0 is one-way compatible with GPLv3 for this
+purpose; the original Apache-2.0 terms continue to apply to the
+unmodified portions of the inherited source as required above.
+
+Files changed from their upstream Lawnchair/AOSP form are tracked via
+this repository's git history (see the `upstream` remote and the
+divergence from the `lawnchairlauncher/lawnchair` repository) in lieu of
+per-file change markers.
