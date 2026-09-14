@@ -206,6 +206,19 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
         return o instanceof ItemInfo info && willAcceptItemType(info.itemType);
     }
 
+    /**
+     * Whether placing {@code item} into {@code target} would exceed the user-configured max
+     * folder nesting depth. Only meaningful when {@code item} is itself a {@link FolderInfo};
+     * always false otherwise.
+     */
+    static boolean exceedsMaxNestingDepth(FolderInfo target, ItemInfo item, Context context) {
+        if (!(item instanceof FolderInfo)) {
+            return false;
+        }
+        int maxDepth = PreferenceManager2.INSTANCE.get(context).getMaxFolderNestingDepthBlocking();
+        return target.getNestingDepth() + 1 > maxDepth;
+    }
+
     private Alarm mReorderAlarm = new Alarm(Looper.getMainLooper());
     private Alarm mOnExitAlarm = new Alarm(Looper.getMainLooper());
     private Alarm mOnScrollHintAlarm = new Alarm(Looper.getMainLooper());
@@ -985,12 +998,16 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     }
 
     /**
-     * If there's a folder already open, we want to close it before opening another one.
+     * If there's a folder already open, we want to close it before opening another one - unless
+     * the folder being opened is nested inside the one that's already open, in which case both
+     * should stay open, stacked on top of each other.
      */
     @VisibleForTesting
     boolean closeOpenFolder(Folder openFolder) {
-        if (openFolder != null && openFolder != this) {
-            // Close any open folder before opening a folder.
+        if (openFolder != null && openFolder != this
+                && !mInfo.isDescendantOf(openFolder.mInfo)) {
+            // Close any open folder before opening a folder, unless we're opening a folder
+            // nested inside it.
             openFolder.close(true);
             return true;
         }
@@ -1004,6 +1021,7 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
 
     @Override
     protected void handleClose(boolean animate) {
+        closeDescendantFolders();
         mIsOpen = false;
         mContent.setCanAnnouncePageDescriptionForFolder(false);
 
@@ -1030,6 +1048,26 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
         // longer occludes the workspace items
         mActivityContext.getDragLayer().sendAccessibilityEvent(
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED);
+    }
+
+    /**
+     * Closes any other open {@link Folder} views that are nested (directly or transitively)
+     * inside this one, so that closing an ancestor folder doesn't leave a stacked child folder
+     * dangling with no visible parent.
+     */
+    private void closeDescendantFolders() {
+        BaseDragLayer dragLayer = mActivityContext.getDragLayer();
+        List<Folder> descendants = new ArrayList<>();
+        for (int i = 0; i < dragLayer.getChildCount(); i++) {
+            View child = dragLayer.getChildAt(i);
+            if (child instanceof Folder otherFolder && otherFolder != this
+                    && otherFolder.isOpen() && otherFolder.mInfo.isDescendantOf(mInfo)) {
+                descendants.add(otherFolder);
+            }
+        }
+        for (Folder descendant : descendants) {
+            descendant.close(false);
+        }
     }
 
     private void cancelRunningAnimations() {
@@ -1173,7 +1211,8 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     public boolean acceptDrop(DragObject d) {
         // LC: App drawer folders are not backed by the launcher model, so dropping
         // into them would write through ModelWriter and crash (#7127).
-        return !isInAppDrawer() && willAcceptItemType(d.dragInfo.itemType);
+        return !isInAppDrawer() && mInfo.canAcceptItem(d.dragInfo)
+                && !exceedsMaxNestingDepth(mInfo, d.dragInfo, getContext());
     }
 
     public void onDragEnter(DragObject d) {
@@ -1708,8 +1747,15 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
 
     /** Add an app or shortcut for a specified rank */
     public void addFolderContent(ItemInfo item, int rank, boolean animate) {
-        if (!willAcceptItemType(item.itemType)) {
-            throw new RuntimeException("tried to add an illegal type into a folder");
+        if (!mInfo.canAcceptItem(item)) {
+            throw new RuntimeException("tried to add an illegal or cycle-forming item into a "
+                    + "folder");
+        }
+        if (exceedsMaxNestingDepth(mInfo, item, getContext())) {
+            throw new RuntimeException("tried to nest a folder beyond the configured max depth");
+        }
+        if (item instanceof FolderInfo fi) {
+            fi.containerFolder = mInfo;
         }
 
         rank = Utilities.boundToRange(rank, 0, mInfo.getContents().size());
@@ -1738,6 +1784,11 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     /** Remove all matching app or shortcut. Does not change the DB. */
     public void removeFolderContent(boolean animate, ItemInfo... items) {
         List<ItemInfo> itemArray = Arrays.asList(items);
+        for (ItemInfo item : itemArray) {
+            if (item instanceof FolderInfo fi && fi.containerFolder == mInfo) {
+                fi.containerFolder = null;
+            }
+        }
         if (mInfo.getContents().removeAll(itemArray)) {
             mActivityContext.getModelWriter().notifyItemModified(mInfo);
         }

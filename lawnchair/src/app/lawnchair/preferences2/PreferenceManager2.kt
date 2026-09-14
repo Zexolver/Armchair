@@ -710,6 +710,18 @@ class PreferenceManager2 @Inject constructor(
         onSet = { reloadHelper.reloadGrid() },
     )
 
+    val maxFolderNestingDepth = preference(
+        key = intPreferencesKey(name = "max_folder_nesting_depth"),
+        defaultValue = 25,
+    )
+
+    /**
+     * Synchronous accessor for Java call sites (e.g. [com.android.launcher3.folder.Folder],
+     * [com.android.launcher3.folder.FolderIcon]) that need the current max nesting depth outside
+     * of a Composable/coroutine context.
+     */
+    fun getMaxFolderNestingDepthBlocking(): Int = maxFolderNestingDepth.firstBlocking()
+
     val additionalFonts = preference(
         key = stringPreferencesKey(name = "additional_fonts"),
         defaultValue = "",

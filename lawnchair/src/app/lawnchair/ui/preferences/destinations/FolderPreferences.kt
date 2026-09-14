@@ -89,6 +89,12 @@ fun FolderPreferences(
                 step = 1,
                 valueRange = 2..5,
             )
+            SliderPreference(
+                label = stringResource(id = R.string.max_folder_nesting_depth),
+                adapter = prefs2.maxFolderNestingDepth.getAdapter(),
+                step = 1,
+                valueRange = 1..25,
+            )
         }
 
         val homeScreenLabelsAdapter = prefs2.showIconLabelsOnHomeScreenFolder.getAdapter()

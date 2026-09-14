@@ -37,10 +37,12 @@ import android.view.View;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
+import androidx.core.content.ContextCompat;
 
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.Flags;
 import com.android.launcher3.LauncherAppState;
+import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.apppairs.AppPairIcon;
 import com.android.launcher3.apppairs.AppPairIconDrawingParams;
@@ -410,6 +412,12 @@ public class PreviewItemManager {
             AppPairIconDrawingParams appPairParams = new AppPairIconDrawingParams(mContext, DISPLAY_FOLDER);
             p.drawable = AppPairIconGraphic.composeDrawable(api, appPairParams);
             p.drawable.setBounds(0, 0, iconSize, iconSize);
+        } else if (item instanceof FolderInfo) {
+            // A nested folder shown as a mini-icon inside this folder's closed preview.
+            p.drawable = ContextCompat.getDrawable(mContext, R.drawable.ic_folder);
+            if (p.drawable != null) {
+                p.drawable.setBounds(0, 0, iconSize, iconSize);
+            }
         } else if (item instanceof ItemInfoWithIcon withIcon){
             var isThemed = PreferenceManager.getInstance(mContext).getDrawerThemedIcons().get() ? FLAG_THEMED : 0;
             p.drawable = withIcon.newIcon(mContext, isThemed);

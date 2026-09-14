@@ -899,6 +899,7 @@
 
     <string name="max_folder_columns">Maximum folder columns</string>
     <string name="max_folder_rows">Maximum folder rows</string>
+    <string name="max_folder_nesting_depth">Maximum folder nesting depth</string>
 
     <!-- Quickstep settings -->
     <string name="quickswitch_ignored_warning">These settings will be ignored because Lawnchair isn\'t set as the Recents screen provider</string>

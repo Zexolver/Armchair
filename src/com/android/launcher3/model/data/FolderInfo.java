@@ -23,6 +23,7 @@ import static androidx.core.util.Preconditions.checkNotNull;
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APPLICATION;
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_APP_PAIR;
 import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_DEEP_SHORTCUT;
+import static com.android.launcher3.LauncherSettings.Favorites.ITEM_TYPE_FOLDER;
 import static com.android.launcher3.logger.LauncherAtom.Attribute.EMPTY_LABEL;
 import static com.android.launcher3.logger.LauncherAtom.Attribute.MANUAL_LABEL;
 import static com.android.launcher3.logger.LauncherAtom.Attribute.SUGGESTED_LABEL;
@@ -91,6 +92,15 @@ public class FolderInfo extends CollectionInfo {
      */
     private final ArrayList<ItemInfo> contents = new ArrayList<>();
 
+    /**
+     * The folder that directly contains this folder, if any. Runtime-only (not persisted to the
+     * database); maintained by whoever mutates {@link #getContents()} of the parent, so that
+     * nesting depth and ancestor/descendant relationships can be computed without a synchronous
+     * id-to-object index.
+     */
+    @Nullable
+    public FolderInfo containerFolder;
+
     public FolderInfo() {
         itemType = LauncherSettings.Favorites.ITEM_TYPE_FOLDER;
     }
@@ -100,7 +110,57 @@ public class FolderInfo extends CollectionInfo {
         if (!willAcceptItemType(item.itemType)) {
             throw new RuntimeException("tried to add an illegal type into a folder");
         }
+        if (item instanceof FolderInfo fi) {
+            fi.containerFolder = this;
+        }
         getContents().add(item);
+    }
+
+    /**
+     * Type + cycle check for whether {@code item} can be placed into this folder. Does not
+     * enforce the user-configurable max nesting depth; callers that need to reject a drop for
+     * exceeding the configured depth must check that separately (see {@link #getNestingDepth()}).
+     */
+    public boolean canAcceptItem(@NonNull ItemInfo item) {
+        if (!willAcceptItemType(item.itemType)) {
+            return false;
+        }
+        if (item instanceof FolderInfo fi && (fi == this || this.isDescendantOf(fi))) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Number of folder levels above this one (0 if this folder is directly on the workspace or
+     * in the hotseat). Defensively capped so that any corrupt/cyclic containerFolder chain can't
+     * cause an infinite loop.
+     */
+    public int getNestingDepth() {
+        int depth = 0;
+        FolderInfo parent = containerFolder;
+        while (parent != null && depth < 64) {
+            depth++;
+            parent = parent.containerFolder;
+        }
+        return depth;
+    }
+
+    /**
+     * Whether {@code other} is this folder, or an ancestor of it, by walking
+     * {@link #containerFolder}.
+     */
+    public boolean isDescendantOf(@NonNull FolderInfo other) {
+        FolderInfo current = this;
+        int hops = 0;
+        while (current != null && hops < 64) {
+            if (current == other) {
+                return true;
+            }
+            current = current.containerFolder;
+            hops++;
+        }
+        return false;
     }
 
     /**
@@ -126,6 +186,8 @@ public class FolderInfo extends CollectionInfo {
                 workspaceItemInfos.add(wii);
             } else if (item instanceof AppPairInfo api) {
                 workspaceItemInfos.addAll(api.getAppContents());
+            } else if (item instanceof FolderInfo fi) {
+                workspaceItemInfos.addAll(fi.getAppContents());
             }
         }
         return workspaceItemInfos;
@@ -321,6 +383,7 @@ public class FolderInfo extends CollectionInfo {
     public static boolean willAcceptItemType(int itemType) {
         return itemType == ITEM_TYPE_APPLICATION
                 || itemType == ITEM_TYPE_DEEP_SHORTCUT
-                || itemType == ITEM_TYPE_APP_PAIR;
+                || itemType == ITEM_TYPE_APP_PAIR
+                || itemType == ITEM_TYPE_FOLDER;
     }
 }
