@@ -2114,6 +2114,12 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
             return false;
         }
 
+        if (dropOverView instanceof FolderIcon) {
+            // Dropping onto an existing folder is always "add to existing folder", never
+            // "wrap it in a brand new folder" - handled by willAddToExistingUserFolder instead.
+            return false;
+        }
+
         boolean aboveShortcut = Folder.willAccept(dropOverView.getTag())
                 && ((ItemInfo) dropOverView.getTag()).container != CONTAINER_HOTSEAT_PREDICTION;
         boolean willBecomeShortcut = FolderInfo.willAcceptItemType(info.itemType);
@@ -2161,6 +2167,15 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
 
         if (v == null || hasntMoved || !mCreateUserFolderOnDrop) return false;
         mCreateUserFolderOnDrop = false;
+
+        if (v instanceof FolderIcon) {
+            // Dropping onto an existing folder is always "add to existing folder", never
+            // "wrap it in a brand new folder" - handled by addToExistingFolderIfNecessary
+            // instead. (v's ItemInfo type being foldable no longer implies "not already a
+            // folder" now that folders can be nested.)
+            return false;
+        }
+
         final int screenId = getCellLayoutId(target);
 
         boolean aboveShortcut = Folder.willAccept(v.getTag());

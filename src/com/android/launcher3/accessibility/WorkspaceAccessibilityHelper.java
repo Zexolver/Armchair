@@ -116,11 +116,11 @@ public class WorkspaceAccessibilityHelper extends DragAndDropAccessibilityDelega
         View child = mView.getChildAt(x, y);
         if (child != null && child != dragInfo.item) {
             ItemInfo info = (ItemInfo) child.getTag();
-            if (Folder.willAccept(info)) {
-                return mContext.getString(R.string.folder_created);
-
-            } else if (info instanceof FolderInfo) {
+            if (info instanceof FolderInfo) {
                 return mContext.getString(R.string.added_to_folder);
+
+            } else if (Folder.willAccept(info)) {
+                return mContext.getString(R.string.folder_created);
             }
         }
         return "";
