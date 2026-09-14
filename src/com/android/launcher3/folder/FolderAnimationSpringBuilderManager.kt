@@ -85,7 +85,11 @@ class FolderAnimationSpringBuilderManager(
          * title text.
          */
         fun getBubbleTextView(v: View): BubbleTextView {
-            return if (v is AppPairIcon) v.titleTextView else (v as BubbleTextView)
+            return when (v) {
+                is AppPairIcon -> v.titleTextView
+                is FolderIcon -> v.folderName
+                else -> v as BubbleTextView
+            }
         }
     }
 }

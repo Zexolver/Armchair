@@ -385,7 +385,11 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
          * title text.
          */
         private fun getBubbleTextView(v: View): BubbleTextView {
-            return if (v is AppPairIcon) v.titleTextView else (v as BubbleTextView)
+            return when (v) {
+                is AppPairIcon -> v.titleTextView
+                is FolderIcon -> v.folderName
+                else -> v as BubbleTextView
+            }
         }
 
         private fun addContentIconAnimators(
