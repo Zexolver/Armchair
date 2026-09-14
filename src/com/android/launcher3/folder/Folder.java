@@ -28,6 +28,7 @@ import static com.android.launcher3.config.FeatureFlags.ALWAYS_USE_HARDWARE_OPTI
 import static com.android.launcher3.folder.FolderGridOrganizer.createFolderGridOrganizer;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_FOLDER_LABEL_UPDATED;
 import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_ITEM_DROP_COMPLETED;
+import static com.android.launcher3.logging.StatsLogManager.LauncherEvent.LAUNCHER_ITEM_DROP_COMPLETED_ON_FOLDER_ICON;
 import static com.android.launcher3.model.data.FolderInfo.willAcceptItemType;
 import static com.android.launcher3.pageindicators.PaginationArrow.DISABLED_ARROW_OPACITY;
 import static com.android.launcher3.pageindicators.PaginationArrow.FULLY_OPAQUE;
@@ -255,6 +256,15 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     // Cell ranks used for drag and drop
     @Thunk
     int mTargetRank, mPrevTargetRank, mEmptyCellRank;
+
+    /**
+     * A nested folder icon currently being hovered over (with a valid accept-drop), if any.
+     * While set, real-time reordering is suppressed so the target's position stays stable, and
+     * dropping merges into it instead of adding as a sibling. See {@link #onDragOver}/
+     * {@link #onDrop}.
+     */
+    @Nullable
+    private FolderIcon mMergeTargetFolderIcon;
 
     private Path mClipPath;
 
@@ -1249,9 +1259,27 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
         mTargetRank = getTargetRank(d, r);
 
         if (mTargetRank != mPrevTargetRank) {
+            View targetView = mapOverItems((info, view) -> info != null && info.rank == mTargetRank);
+            FolderIcon mergeCandidate = targetView instanceof FolderIcon fi
+                    && fi.acceptDrop(d.dragInfo) ? fi : null;
+            if (mergeCandidate != mMergeTargetFolderIcon) {
+                if (mMergeTargetFolderIcon != null) {
+                    mMergeTargetFolderIcon.onDragExit();
+                }
+                mMergeTargetFolderIcon = mergeCandidate;
+                if (mMergeTargetFolderIcon != null) {
+                    mMergeTargetFolderIcon.onDragEnter(d.dragInfo);
+                }
+            }
+
             mReorderAlarm.cancelAlarm();
-            mReorderAlarm.setOnAlarmListener(mReorderAlarmListener);
-            mReorderAlarm.setAlarm(REORDER_DELAY);
+            if (mMergeTargetFolderIcon == null) {
+                // Only real-time-reorder siblings out of the way when we're not hovering a
+                // folder we could merge into instead - reordering would displace the merge
+                // target and make it impossible to drop onto it.
+                mReorderAlarm.setOnAlarmListener(mReorderAlarmListener);
+                mReorderAlarm.setAlarm(REORDER_DELAY);
+            }
             mPrevTargetRank = mTargetRank;
 
             if (d.stateAnnouncer != null) {
@@ -1337,6 +1365,10 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
             mOnExitAlarm.setAlarm(ON_EXIT_CLOSE_DELAY);
         }
         mReorderAlarm.cancelAlarm();
+        if (mMergeTargetFolderIcon != null) {
+            mMergeTargetFolderIcon.onDragExit();
+            mMergeTargetFolderIcon = null;
+        }
 
         mOnScrollHintAlarm.cancelAlarm();
         mScrollPauseAlarm.cancelAlarm();
@@ -1618,6 +1650,20 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
 
     @Override
     public void onDrop(DragObject d, DragOptions options) {
+        if (mMergeTargetFolderIcon != null && mMergeTargetFolderIcon.acceptDrop(d.dragInfo)) {
+            // The drop landed on a folder nested inside this one (and we've been hovering it
+            // long enough that real-time reordering was suppressed to keep it in place) - merge
+            // into that folder instead of adding this item as a sibling of it.
+            FolderIcon mergeTarget = mMergeTargetFolderIcon;
+            mMergeTargetFolderIcon = null;
+            mStatsLogManager.logger().withItemInfo(mergeTarget.mInfo)
+                    .withInstanceId(d.logInstanceId)
+                    .log(LAUNCHER_ITEM_DROP_COMPLETED_ON_FOLDER_ICON);
+            mergeTarget.onDrop(d, false /* itemReturnedOnFailedDrop */);
+            mIsDragInProgress = false;
+            return;
+        }
+
         // If the icon was dropped while the page was being scrolled, we need to compute
         // the target location again such that the icon is placed of the final page.
         if (!mContent.rankOnCurrentPage(mEmptyCellRank)) {
