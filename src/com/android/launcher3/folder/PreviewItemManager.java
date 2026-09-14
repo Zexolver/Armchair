@@ -27,10 +27,12 @@ import static com.android.launcher3.icons.BitmapInfo.FLAG_THEMED;
 import static com.android.launcher3.model.data.ItemInfoWithIcon.FLAG_SHOW_DOWNLOAD_PROGRESS_MASK;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Path;
 import android.graphics.PointF;
 import android.graphics.Rect;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.util.Log;
 import android.view.View;
@@ -65,6 +67,9 @@ import app.lawnchair.preferences.PreferenceManager;
  * {@link FolderIcon}.
  */
 public class PreviewItemManager {
+
+    /** Sanity/perf bound on recursive nested-folder preview rendering; see setDrawable. */
+    private static final int MAX_RECURSIVE_PREVIEW_DEPTH = 4;
 
     private final Context mContext;
     private final FolderIcon mIcon;
@@ -412,9 +417,15 @@ public class PreviewItemManager {
             AppPairIconDrawingParams appPairParams = new AppPairIconDrawingParams(mContext, DISPLAY_FOLDER);
             p.drawable = AppPairIconGraphic.composeDrawable(api, appPairParams);
             p.drawable.setBounds(0, 0, iconSize, iconSize);
-        } else if (item instanceof FolderInfo) {
-            // A nested folder shown as a mini-icon inside this folder's closed preview.
-            p.drawable = ContextCompat.getDrawable(mContext, R.drawable.ic_folder);
+        } else if (item instanceof FolderInfo nestedFolderInfo) {
+            // A nested folder shown as a mini-icon inside this folder's closed preview: render
+            // an actual miniature of the nested folder's own preview (background + its own mini
+            // icons), recursively, rather than a flat placeholder glyph. Depth-capped purely as a
+            // sanity/perf bound - real cycle prevention already happens at insertion time
+            // (FolderInfo.canAcceptItem), so this should never actually be hit in practice.
+            p.drawable = nestedFolderInfo.getNestingDepth() <= MAX_RECURSIVE_PREVIEW_DEPTH
+                    ? renderNestedFolderPreview(nestedFolderInfo, iconSize)
+                    : ContextCompat.getDrawable(mContext, R.drawable.ic_folder);
             if (p.drawable != null) {
                 p.drawable.setBounds(0, 0, iconSize, iconSize);
             }
@@ -440,6 +451,34 @@ public class PreviewItemManager {
                         }
                     }, info, DESKTOP_ICON_FLAG);
         }
+    }
+
+    /**
+     * Builds a miniature bitmap of {@code folderInfo}'s own closed-folder appearance (background
+     * + its own preview icons), for use as a single mini-icon inside a parent folder's preview.
+     * Inflates a detached {@link FolderIcon} for the nested folder and rasterizes it - this
+     * naturally recurses (via that icon's own {@link #setDrawable}) for folders nested more than
+     * one level deep, and reuses the exact same drawing code the nested folder would use if shown
+     * on its own, rather than a hand-rolled approximation.
+     */
+    private Drawable renderNestedFolderPreview(FolderInfo folderInfo, int size) {
+        if (size <= 0) {
+            return null;
+        }
+        FolderIcon nestedIcon = FolderIcon.inflateIcon(
+                R.layout.folder_icon, ActivityContext.lookupContext(mContext), null, folderInfo);
+        // The folder's title label would otherwise render illegibly small at preview scale; the
+        // background + mini preview icons are drawn separately in dispatchDraw and are
+        // unaffected by hiding this child view.
+        nestedIcon.getFolderName().setVisibility(View.GONE);
+        int spec = View.MeasureSpec.makeMeasureSpec(size, View.MeasureSpec.EXACTLY);
+        nestedIcon.measure(spec, spec);
+        nestedIcon.layout(0, 0, size, size);
+
+        Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        nestedIcon.draw(canvas);
+        return new BitmapDrawable(mContext.getResources(), bitmap);
     }
 
     /**
