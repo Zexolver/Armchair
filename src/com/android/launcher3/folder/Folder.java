@@ -1065,6 +1065,8 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
      * inside this one, so that closing an ancestor folder doesn't leave a stacked child folder
      * dangling with no visible parent.
      */
+    private static final int DESCENDANT_CLOSE_STAGGER_MS = 40;
+
     private void closeDescendantFolders() {
         BaseDragLayer dragLayer = mActivityContext.getDragLayer();
         List<Folder> descendants = new ArrayList<>();
@@ -1075,11 +1077,24 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
                 descendants.add(otherFolder);
             }
         }
+        // Innermost (deepest) first, each subsequent one starting a beat later - reads as the
+        // stack collapsing inward in sequence, rather than every level vanishing at once
+        // independently (each one closes toward its own spot in its immediate parent regardless,
+        // but starting them all simultaneously looked disjointed rather than like one motion).
+        descendants.sort((a, b) -> Integer.compare(
+                b.mInfo.getNestingDepth(), a.mInfo.getNestingDepth()));
+        int delay = 0;
         for (Folder descendant : descendants) {
-            // Animate the cascade close (matching however this folder itself is closing) rather
-            // than snapping descendants away instantly - otherwise closing a nested stack looks
-            // disjointed, as if the inner folders aren't part of the same motion as the outer one.
-            descendant.close(true);
+            if (delay == 0) {
+                descendant.close(true);
+            } else {
+                descendant.postDelayed(() -> {
+                    if (descendant.isOpen()) {
+                        descendant.close(true);
+                    }
+                }, delay);
+            }
+            delay += DESCENDANT_CLOSE_STAGGER_MS;
         }
     }
 

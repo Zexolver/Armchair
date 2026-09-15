@@ -71,6 +71,16 @@ public class PreviewItemManager {
     /** Sanity/perf bound on recursive nested-folder preview rendering; see setDrawable. */
     private static final int MAX_RECURSIVE_PREVIEW_DEPTH = 4;
 
+    /**
+     * How many bitmap-snapshot layers deep the current call stack is inside
+     * {@link #renderNestedFolderPreview}. Single-threaded (all of this runs on the UI thread),
+     * incremented/decremented around each recursive render so it always reflects the live call
+     * stack. Deliberately NOT per-instance: a fresh {@link PreviewItemManager} is constructed for
+     * every {@link FolderIcon}, including the throwaway ones renderNestedFolderPreview itself
+     * builds, so an instance field would always read 0 there.
+     */
+    private static int sRecursivePreviewDepth = 0;
+
     private final Context mContext;
     private final FolderIcon mIcon;
     @VisibleForTesting
@@ -420,15 +430,16 @@ public class PreviewItemManager {
         } else if (item instanceof FolderInfo nestedFolderInfo) {
             // A nested folder shown as a mini-icon inside this folder's closed preview: render
             // an actual miniature of the nested folder's own preview (background + its own mini
-            // icons), recursively, rather than a flat placeholder glyph. Depth-capped purely as a
-            // sanity/perf bound - real cycle prevention already happens at insertion time
-            // (FolderInfo.canAcceptItem), so this should never actually be hit in practice.
-            Drawable recursivePreview = nestedFolderInfo.getNestingDepth() <= MAX_RECURSIVE_PREVIEW_DEPTH
-                    ? renderNestedFolderPreview(nestedFolderInfo, iconSize)
-                    : null;
-            // renderNestedFolderPreview can return null for a degenerate (non-positive) size;
-            // always fall back to the flat glyph rather than leaving p.drawable null, since the
-            // rest of this method assumes it's always set.
+            // icons), recursively, rather than a flat placeholder glyph. renderNestedFolderPreview
+            // itself caps how many bitmap-snapshot layers deep this can recurse (see
+            // sRecursivePreviewDepth there) - deliberately not based on this folder's absolute
+            // position in the nesting hierarchy, since that would also (wrongly) cut off preview
+            // rendering for a folder genuinely opened on screen, just because some ancestor of
+            // it happens to be deeply nested in the data model.
+            Drawable recursivePreview = renderNestedFolderPreview(nestedFolderInfo, iconSize);
+            // renderNestedFolderPreview can return null (degenerate size, or the recursion cap
+            // reached); always fall back to the flat glyph rather than leaving p.drawable null,
+            // since the rest of this method assumes it's always set.
             p.drawable = recursivePreview != null
                     ? recursivePreview
                     : ContextCompat.getDrawable(mContext, R.drawable.ic_folder);
@@ -468,23 +479,33 @@ public class PreviewItemManager {
      * on its own, rather than a hand-rolled approximation.
      */
     private Drawable renderNestedFolderPreview(FolderInfo folderInfo, int size) {
-        if (size <= 0) {
+        if (size <= 0 || sRecursivePreviewDepth >= MAX_RECURSIVE_PREVIEW_DEPTH) {
             return null;
         }
-        FolderIcon nestedIcon = FolderIcon.inflateIcon(
-                R.layout.folder_icon, ActivityContext.lookupContext(mContext), null, folderInfo);
-        // The folder's title label would otherwise render illegibly small at preview scale; the
-        // background + mini preview icons are drawn separately in dispatchDraw and are
-        // unaffected by hiding this child view.
-        nestedIcon.getFolderName().setVisibility(View.GONE);
-        int spec = View.MeasureSpec.makeMeasureSpec(size, View.MeasureSpec.EXACTLY);
-        nestedIcon.measure(spec, spec);
-        nestedIcon.layout(0, 0, size, size);
+        sRecursivePreviewDepth++;
+        try {
+            FolderIcon nestedIcon = FolderIcon.inflateIcon(
+                    R.layout.folder_icon, ActivityContext.lookupContext(mContext), null,
+                    folderInfo);
+            // The folder's title label would otherwise render illegibly small at preview scale;
+            // the background + mini preview icons are drawn separately in dispatchDraw and are
+            // unaffected by hiding this child view.
+            nestedIcon.getFolderName().setVisibility(View.GONE);
+            int spec = View.MeasureSpec.makeMeasureSpec(size, View.MeasureSpec.EXACTLY);
+            nestedIcon.measure(spec, spec);
+            nestedIcon.layout(0, 0, size, size);
 
-        Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bitmap);
-        nestedIcon.draw(canvas);
-        return new BitmapDrawable(mContext.getResources(), bitmap);
+            Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(bitmap);
+            // nestedIcon.draw() -> dispatchDraw() computes its own preview items synchronously
+            // (inflateIcon already triggered this above), which recurses back into setDrawable
+            // for any FolderInfo among them - hence sRecursivePreviewDepth tracking bitmap-layer
+            // recursion here, not folder nesting depth in the data model.
+            nestedIcon.draw(canvas);
+            return new BitmapDrawable(mContext.getResources(), bitmap);
+        } finally {
+            sRecursivePreviewDepth--;
+        }
     }
 
     /**
