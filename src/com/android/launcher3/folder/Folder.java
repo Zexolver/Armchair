@@ -1076,7 +1076,10 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
             }
         }
         for (Folder descendant : descendants) {
-            descendant.close(false);
+            // Animate the cascade close (matching however this folder itself is closing) rather
+            // than snapping descendants away instantly - otherwise closing a nested stack looks
+            // disjointed, as if the inner folders aren't part of the same motion as the outer one.
+            descendant.close(true);
         }
     }
 
