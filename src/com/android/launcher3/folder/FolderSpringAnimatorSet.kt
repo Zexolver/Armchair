@@ -46,7 +46,7 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
     }
 
     companion object Factory {
-        private const val LAUNCHER_SCALE = 0.975f
+        internal const val LAUNCHER_SCALE = 0.975f
         private const val FOLDER_NAME_ALPHA_DURATION = 32
         private const val LARGE_FOLDER_FOOTER_DURATION = 128
         private const val STIFFNESS_SHAPE_POSITION = 380f

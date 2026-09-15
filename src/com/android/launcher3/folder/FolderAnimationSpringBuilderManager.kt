@@ -42,18 +42,37 @@ class FolderAnimationSpringBuilderManager(
     private val launcherDelegate: LauncherDelegate,
 ) : FolderAnimationCreator {
     override fun createAnimatorSet(isOpening: Boolean): AnimatorSet {
-        resetLauncherScale(launcherDelegate.launcher?.workspace, launcherDelegate.launcher?.hotseat)
+        val workspace = launcherDelegate.launcher?.workspace
+        val hotseat = launcherDelegate.launcher?.hotseat
+        resetLauncherScale(workspace, hotseat)
         val folderAnimData: FolderAnimationData = folder.getAnimationData(isOpening)
         val clipRevealData: ClipRevealData = folder.getClipRevealData(shapeDelegate, folderAnimData)
         val iconAnimData: List<IconAnimationData> = folder.getIconAnimationDataList(folderAnimData)
-        return FolderSpringAnimatorSet.build(
+        val result =
+            FolderSpringAnimatorSet.build(
                 folder = folder,
                 launcherDelegate = launcherDelegate,
                 folderAnimData = folderAnimData,
                 clipRevealData = clipRevealData,
                 iconAnimData = iconAnimData,
             )
-            .animatorSet
+        if (folder.mInfo.containerFolder != null && workspace != null && hotseat != null) {
+            // This folder is nested inside another, already-open folder, which owns the
+            // dim/scale effect on the background (see FolderSpringAnimatorSet.addScrimAnimators)
+            // and isn't re-animating it for this nested open/close. The reset above was still
+            // needed for correct position/clip math in the calls above, which ran expecting that
+            // reset (unscaled) state throughout, matching the non-nested case; now that they're
+            // done, restore the already-dimmed scale immediately - no animation, and still before
+            // the caller starts this animator set or anything draws a frame - rather than leaving
+            // the background at full undimmed scale for the entire time this nested folder is
+            // open (animating it here instead would be the redundant, visibly "twitchy"
+            // transition this whole nested-scrim-skip exists to avoid).
+            workspace.scaleX = FolderSpringAnimatorSet.LAUNCHER_SCALE
+            workspace.scaleY = FolderSpringAnimatorSet.LAUNCHER_SCALE
+            hotseat.scaleX = FolderSpringAnimatorSet.LAUNCHER_SCALE
+            hotseat.scaleY = FolderSpringAnimatorSet.LAUNCHER_SCALE
+        }
+        return result.animatorSet
     }
 
     // Folders can exist outside of Launcher (Ex. Transient Taskbar)
