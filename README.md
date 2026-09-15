@@ -1,4 +1,6 @@
-# Lawnchair 16
+# Armchair
+
+> A [Lawnchair](https://github.com/lawnchairlauncher/lawnchair) 16-based fork. Everything below this point is upstream Lawnchair's own README, kept as-is for reference.
 
 [![Build debug APK](https://github.com/LawnchairLauncher/lawnchair/actions/workflows/ci.yml/badge.svg)](https://github.com/LawnchairLauncher/lawnchair/actions/workflows/ci.yml)
 [![Build release APK](https://github.com/LawnchairLauncher/lawnchair/actions/workflows/release_update.yml/badge.svg)](https://github.com/LawnchairLauncher/lawnchair/actions/workflows/release_update.yml)
