@@ -34,7 +34,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.launcher3.LauncherSettings;
-import com.android.launcher3.folder.FolderIcon;
 import com.android.launcher3.folder.FolderNameInfos;
 import com.android.launcher3.logger.LauncherAtom;
 import com.android.launcher3.logger.LauncherAtom.Attribute;
@@ -104,16 +103,19 @@ public class FolderInfo extends CollectionInfo {
     public FolderInfo containerFolder;
 
     /**
-     * Weak reference to the currently-inflated {@link FolderIcon} actually representing this
-     * folder on screen (workspace, hotseat, or inside an open parent folder), if any. Set by
-     * {@link FolderIcon#inflateFolderAndIcon}, the "real" binding path - deliberately not set by
-     * one-off detached icons built purely to rasterize a mini-preview (see
-     * PreviewItemManager#renderNestedFolderPreview), so those never clobber this. Used so that
-     * changing a deeply-nested folder's contents can refresh every ancestor's cached recursive
-     * preview, not just its direct parent's.
+     * Weak reference to the currently-inflated {@link com.android.launcher3.folder.FolderIcon}
+     * actually representing this folder on screen (workspace, hotseat, or inside an open parent
+     * folder), if any. Fully-qualified throughout this class since a differently-purposed
+     * {@code FolderIcon} (the analytics/proto one, {@link LauncherAtom.FolderIcon}) is already
+     * imported below. Set by
+     * {@link com.android.launcher3.folder.FolderIcon#inflateFolderAndIcon}, the "real" binding
+     * path - deliberately not set by one-off detached icons built purely to rasterize a
+     * mini-preview (see PreviewItemManager#renderNestedFolderPreview), so those never clobber
+     * this. Used so that changing a deeply-nested folder's contents can refresh every ancestor's
+     * cached recursive preview, not just its direct parent's.
      */
     @Nullable
-    private WeakReference<FolderIcon> liveIconRef;
+    private WeakReference<com.android.launcher3.folder.FolderIcon> liveIconRef;
 
     public FolderInfo() {
         itemType = LauncherSettings.Favorites.ITEM_TYPE_FOLDER;
@@ -160,12 +162,12 @@ public class FolderInfo extends CollectionInfo {
         return depth;
     }
 
-    public void setLiveIcon(@Nullable FolderIcon icon) {
+    public void setLiveIcon(@Nullable com.android.launcher3.folder.FolderIcon icon) {
         liveIconRef = icon == null ? null : new WeakReference<>(icon);
     }
 
     @Nullable
-    public FolderIcon getLiveIcon() {
+    public com.android.launcher3.folder.FolderIcon getLiveIcon() {
         return liveIconRef == null ? null : liveIconRef.get();
     }
 
@@ -181,7 +183,7 @@ public class FolderInfo extends CollectionInfo {
         FolderInfo ancestor = containerFolder;
         int hops = 0;
         while (ancestor != null && hops < 64) {
-            FolderIcon icon = ancestor.getLiveIcon();
+            com.android.launcher3.folder.FolderIcon icon = ancestor.getLiveIcon();
             if (icon != null) {
                 icon.onItemsChanged(false);
             }
