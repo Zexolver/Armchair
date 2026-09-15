@@ -69,6 +69,7 @@ import android.view.ViewConfiguration;
 import android.view.ViewDebug;
 import android.view.WindowInsets;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.animation.AccelerateInterpolator;
 import android.view.animation.AnimationUtils;
 import android.view.inputmethod.EditorInfo;
 import android.widget.LinearLayout;
@@ -1085,6 +1086,11 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
                 b.mInfo.getNestingDepth(), a.mInfo.getNestingDepth()));
         int delay = 0;
         for (Folder descendant : descendants) {
+            // Pulled toward this folder (the one whose close actually cascaded here), not each
+            // descendant's own immediate parent - so a multi-level stack converges on the single
+            // point the user actually closed, rather than each level pulling toward a different,
+            // cascading target.
+            descendant.mCascadeCloseParent = this;
             if (delay == 0) {
                 descendant.close(true);
             } else {
@@ -1106,6 +1112,11 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
 
     private void animateClosed() {
         if (mIsAnimatingClosed) {
+            return;
+        }
+
+        if (mCascadeCloseParent != null) {
+            animateCascadeClose();
             return;
         }
 
@@ -1147,6 +1158,82 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
         });
         addAnimationStartListeners(animatorSet);
         animatorSet.start();
+    }
+
+    /**
+     * Set just before {@link #close(boolean)} by {@link #closeDescendantFolders()} when this
+     * folder is being closed only because an ancestor of it is closing, not because the user
+     * closed this folder directly. Consumed (and cleared) by {@link #animateCascadeClose()}.
+     */
+    @Nullable
+    private Folder mCascadeCloseParent;
+
+    /**
+     * Lightweight close animation used instead of the normal independent open/close spring
+     * animation when this folder is being cascade-closed alongside an ancestor.
+     *
+     * The normal animation ({@link #animateClosed()}) computes a single static snapshot of this
+     * folder's own closed-icon position at the moment it starts, then animates toward it - which
+     * looks fine when this is the only folder closing, but when an ancestor is *simultaneously*
+     * animating its own shrink/move, that snapshot goes stale within a few frames (the ancestor
+     * keeps moving away from where it was when the snapshot was taken), so the descendant ends up
+     * visibly chasing a target that's no longer there - disjointed rather than "pulled together".
+     * Properly fixing that would mean continuously re-targeting this folder's animation to the
+     * ancestor's live, still-changing transform every frame - real work, and still visual-only
+     * (untestable without eyes on it).
+     *
+     * This sidesteps the problem instead of solving it precisely: shrink-and-fade in place, with
+     * a partial (not exactly tracked) translation biased toward the parent's current center at
+     * the moment this starts. It doesn't try to end up exactly on the parent - by the time this
+     * finishes, the folder is small and transparent enough that exact positioning barely
+     * matters - it just needs to read as "getting pulled toward/absorbed into the parent" rather
+     * than "shrinking in an unrelated spot".
+     */
+    private void animateCascadeClose() {
+        Folder parent = mCascadeCloseParent;
+        mCascadeCloseParent = null;
+        mIsAnimatingClosed = true;
+
+        float pullX = 0f;
+        float pullY = 0f;
+        if (parent != null) {
+            int[] selfLoc = new int[2];
+            int[] parentLoc = new int[2];
+            getLocationOnScreen(selfLoc);
+            parent.getLocationOnScreen(parentLoc);
+            float selfCenterX = selfLoc[0] + getWidth() / 2f;
+            float selfCenterY = selfLoc[1] + getHeight() / 2f;
+            float parentCenterX = parentLoc[0] + parent.getWidth() / 2f;
+            float parentCenterY = parentLoc[1] + parent.getHeight() / 2f;
+            pullX = (parentCenterX - selfCenterX) * 0.35f;
+            pullY = (parentCenterY - selfCenterY) * 0.35f;
+        }
+
+        setPivotX(getWidth() / 2f);
+        setPivotY(getHeight() / 2f);
+        animate()
+                .translationXBy(pullX)
+                .translationYBy(pullY)
+                .scaleX(0.15f)
+                .scaleY(0.15f)
+                .alpha(0f)
+                .setDuration(180)
+                .setInterpolator(new AccelerateInterpolator())
+                .withEndAction(() -> {
+                    closeComplete(true);
+                    announceAccessibilityChanges();
+                    mIsAnimatingClosed = false;
+                    // Reset transform properties this view was carrying, in case it's ever
+                    // reused (e.g. FolderIcon.inflateFolderAndIcon building a fresh Folder
+                    // wouldn't reuse this instance, but leaving a closed Folder's transform
+                    // dirty is asking for a future bug).
+                    setTranslationX(0f);
+                    setTranslationY(0f);
+                    setScaleX(1f);
+                    setScaleY(1f);
+                    setAlpha(1f);
+                })
+                .start();
     }
 
     @Override
