@@ -423,8 +423,14 @@ public class PreviewItemManager {
             // icons), recursively, rather than a flat placeholder glyph. Depth-capped purely as a
             // sanity/perf bound - real cycle prevention already happens at insertion time
             // (FolderInfo.canAcceptItem), so this should never actually be hit in practice.
-            p.drawable = nestedFolderInfo.getNestingDepth() <= MAX_RECURSIVE_PREVIEW_DEPTH
+            Drawable recursivePreview = nestedFolderInfo.getNestingDepth() <= MAX_RECURSIVE_PREVIEW_DEPTH
                     ? renderNestedFolderPreview(nestedFolderInfo, iconSize)
+                    : null;
+            // renderNestedFolderPreview can return null for a degenerate (non-positive) size;
+            // always fall back to the flat glyph rather than leaving p.drawable null, since the
+            // rest of this method assumes it's always set.
+            p.drawable = recursivePreview != null
+                    ? recursivePreview
                     : ContextCompat.getDrawable(mContext, R.drawable.ic_folder);
             if (p.drawable != null) {
                 p.drawable.setBounds(0, 0, iconSize, iconSize);

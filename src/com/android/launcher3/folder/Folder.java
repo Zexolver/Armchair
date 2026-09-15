@@ -1199,6 +1199,11 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
         if (!(mActivityContext instanceof Launcher launcher)) {
             return;
         }
+        if (AbstractFloatingView.hasOpenView(launcher, TYPE_FOLDER)) {
+            // Another folder (an ancestor, in the nested-folder case) is still open - leave the
+            // dimmed/scaled state alone until the whole stack is closed.
+            return;
+        }
         ScrimView scrim = launcher.getScrimView();
         if (scrim != null) {
             scrim.setAlpha(1f);
@@ -1358,17 +1363,27 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     }
 
     public void onDragExit(DragObject d) {
+        // If we're exiting because a nested folder we just spring-loaded open stole the active
+        // drop-target role for this same drag (rather than the user actually dragging away),
+        // don't schedule this folder to auto-close - it should stay open in the background
+        // until the whole nested stack is done with the drag, not just this one level of it.
+        FolderIcon exitingMergeTarget = mMergeTargetFolderIcon;
+        mMergeTargetFolderIcon = null;
+        boolean handingOffToOpenedChild = exitingMergeTarget != null
+                && exitingMergeTarget.getFolder().isOpen();
+        if (exitingMergeTarget != null && !handingOffToOpenedChild) {
+            // Never actually opened (user dragged away before the hover delay elapsed) - clean
+            // up its pending open-alarm/highlight.
+            exitingMergeTarget.onDragExit();
+        }
+
         // We only close the folder if this is a true drag exit, ie. not because
         // a drop has occurred above the folder.
-        if (!d.dragComplete) {
+        if (!d.dragComplete && !handingOffToOpenedChild) {
             mOnExitAlarm.setOnAlarmListener(mOnExitAlarmListener);
             mOnExitAlarm.setAlarm(ON_EXIT_CLOSE_DELAY);
         }
         mReorderAlarm.cancelAlarm();
-        if (mMergeTargetFolderIcon != null) {
-            mMergeTargetFolderIcon.onDragExit();
-            mMergeTargetFolderIcon = null;
-        }
 
         mOnScrollHintAlarm.cancelAlarm();
         mScrollPauseAlarm.cancelAlarm();

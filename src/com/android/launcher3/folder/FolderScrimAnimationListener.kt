@@ -18,6 +18,7 @@ package com.android.launcher3.folder
 
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
+import com.android.launcher3.AbstractFloatingView
 import com.android.launcher3.Launcher
 import com.android.launcher3.LauncherAnimUtils.SCALE_PROPERTY
 import com.android.launcher3.Utilities
@@ -49,6 +50,12 @@ class FolderScrimAnimationListener(
     }
 
     private fun restoreScrimAfterFolderClose() {
+        if (AbstractFloatingView.hasOpenView(launcher, AbstractFloatingView.TYPE_FOLDER)) {
+            // Another folder (an ancestor, in the nested-folder case) is still open - leave the
+            // dimmed/scaled state alone until the whole stack is closed, rather than flickering
+            // it back to normal and re-dimming again for each level as it closes.
+            return
+        }
         scrimView.alpha = 1f
         scrimView.setScrimColors(
             launcher.stateManager.state.getWorkspaceScrimColor(launcher),
