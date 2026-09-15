@@ -34,6 +34,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.launcher3.LauncherSettings;
+import com.android.launcher3.folder.FolderIcon;
 import com.android.launcher3.folder.FolderNameInfos;
 import com.android.launcher3.logger.LauncherAtom;
 import com.android.launcher3.logger.LauncherAtom.Attribute;
@@ -43,6 +44,7 @@ import com.android.launcher3.logger.LauncherAtom.ToState;
 import com.android.launcher3.model.ModelWriter;
 import com.android.launcher3.util.ContentWriter;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.OptionalInt;
 import java.util.stream.IntStream;
@@ -101,6 +103,18 @@ public class FolderInfo extends CollectionInfo {
     @Nullable
     public FolderInfo containerFolder;
 
+    /**
+     * Weak reference to the currently-inflated {@link FolderIcon} actually representing this
+     * folder on screen (workspace, hotseat, or inside an open parent folder), if any. Set by
+     * {@link FolderIcon#inflateFolderAndIcon}, the "real" binding path - deliberately not set by
+     * one-off detached icons built purely to rasterize a mini-preview (see
+     * PreviewItemManager#renderNestedFolderPreview), so those never clobber this. Used so that
+     * changing a deeply-nested folder's contents can refresh every ancestor's cached recursive
+     * preview, not just its direct parent's.
+     */
+    @Nullable
+    private WeakReference<FolderIcon> liveIconRef;
+
     public FolderInfo() {
         itemType = LauncherSettings.Favorites.ITEM_TYPE_FOLDER;
     }
@@ -144,6 +158,36 @@ public class FolderInfo extends CollectionInfo {
             parent = parent.containerFolder;
         }
         return depth;
+    }
+
+    public void setLiveIcon(@Nullable FolderIcon icon) {
+        liveIconRef = icon == null ? null : new WeakReference<>(icon);
+    }
+
+    @Nullable
+    public FolderIcon getLiveIcon() {
+        return liveIconRef == null ? null : liveIconRef.get();
+    }
+
+    /**
+     * Refreshes every ancestor folder's live icon (if currently inflated), so their cached
+     * recursive mini-preview bitmaps pick up a change made to this folder's own contents.
+     * Changing what's directly inside this folder only refreshes this folder's own icon by
+     * itself (via the existing onItemsChanged-style callers); it doesn't tell an ancestor that
+     * its preview - which recursively embeds a rendering of this folder - is now stale, since
+     * from the ancestor's own contents list, nothing changed at all.
+     */
+    public void refreshAncestorLiveIcons() {
+        FolderInfo ancestor = containerFolder;
+        int hops = 0;
+        while (ancestor != null && hops < 64) {
+            FolderIcon icon = ancestor.getLiveIcon();
+            if (icon != null) {
+                icon.onItemsChanged(false);
+            }
+            ancestor = ancestor.containerFolder;
+            hops++;
+        }
     }
 
     /**

@@ -180,6 +180,7 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         folder.bind(folderInfo);
 
         icon.setFolder(folder);
+        folderInfo.setLiveIcon(icon);
         return icon;
     }
 

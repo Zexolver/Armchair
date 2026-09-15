@@ -1840,6 +1840,10 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
 
         mActivityContext.getModelWriter().notifyItemModified(mInfo);
         mFolderIcon.onItemsChanged(animate);
+        // This folder's own icon is refreshed above; a change to its contents can also affect
+        // how any ancestor folder's recursive mini-preview should look, which won't otherwise
+        // be told to refresh since nothing changed in the ancestor's own contents list.
+        mInfo.refreshAncestorLiveIcons();
     }
 
     /** Remove all matching app or shortcut. Does not change the DB. */
@@ -1873,6 +1877,7 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
         }
 
         mFolderIcon.onItemsChanged(animate);
+        mInfo.refreshAncestorLiveIcons();
     }
 
     @VisibleForTesting

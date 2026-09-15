@@ -73,7 +73,7 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
             addClipRevealAnimators(folder, animatorSet, clipRevealData)
             addAlphaAndColorAnimators(folder, animatorSet, folderAnimData)
             addScrimAnimators(
-                folder.context,
+                folder,
                 animatorSet,
                 folderAnimData.isOpening,
                 launcherDelegate,
@@ -321,7 +321,7 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
         }
 
         private fun addScrimAnimators(
-            context: Context,
+            folder: Folder,
             animatorSet: AnimatorSet,
             isOpening: Boolean,
             launcherDelegate: LauncherDelegate,
@@ -332,6 +332,16 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
             if (launcher.isInState(LauncherState.ALL_APPS)) {
                 return
             }
+            if (folder.mInfo.containerFolder != null) {
+                // A folder nested inside another can only ever be opened while its parent is
+                // already open (there's no entry point that skips straight to a nested folder),
+                // so the parent has already dimmed/scaled the background - re-running this
+                // animation from its 0/1 starting values here would visibly snap the scrim/scale
+                // back to "undimmed" for an instant before animating back to the same dimmed
+                // target it's already at. Only the outermost folder in a nested stack drives this.
+                return
+            }
+            val context = folder.context
             val scrimView = launcher.scrimView
             val workspace = launcher.workspace
             val hotseat = launcher.hotseat
