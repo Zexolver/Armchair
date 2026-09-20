@@ -125,7 +125,16 @@ public final class FeatureFlagsImpl implements FeatureFlags {
 
 
     public boolean enableExpressiveFolderExpansion() {
-        return true;
+        // Armchair: forked off 16-dev, which introduced this spring-physics folder animation
+        // system fresh (it doesn't exist at all on 15-dev/15 stable) and has barely been touched
+        // upstream since (3 real commits in ~1.5 years, vs. Folder.java's legacy
+        // FolderAnimationManager path this falls back to when disabled, which is what 15 stable
+        // actually ships and is far more mature/polished). Disabled here after directly comparing
+        // folder open/close animation quality against 15 stable and finding it clearly worse -
+        // this is a deliberate fork-local choice, not an upstream default; revisit if upstream's
+        // expressive folder motion matures. enableLauncherIconShapes() (folder/icon shape
+        // customization, incl. circular folders) is unaffected - it's a separate flag.
+        return false;
     }
 
     @Override
