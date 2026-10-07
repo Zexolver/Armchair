@@ -2269,9 +2269,13 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     @Override
     protected void dispatchDraw(Canvas canvas) {
         if (mClipPath != null) {
-            int count = canvas.save();
-            canvas.clipPath(mClipPath);
+            // Anti-aliased path clip for the background (see FolderClipShader): draw to an
+            // offscreen layer and mask to the reveal path with a soft edge, instead of a hard
+            // canvas.clipPath() that leaves a jagged edge during the folder animation. The
+            // content view (super.dispatchDraw) clips itself the same way in its own dispatchDraw.
+            int count = canvas.saveLayer(null, null);
             mBackground.draw(canvas);
+            canvas.drawPath(mClipPath, FolderClipShader.PAINT);
             canvas.restoreToCount(count);
             super.dispatchDraw(canvas);
         } else {

@@ -157,10 +157,13 @@ public class FolderPagedView extends PagedView<PageIndicatorDots> implements Cli
     @Override
     protected void dispatchDraw(Canvas canvas) {
         if (mClipPath != null) {
-            int count = canvas.save();
-            canvas.clipPath(mClipPath);
+            // Anti-aliased path clip (see FolderClipShader): draw content to an offscreen layer,
+            // then mask it to the reveal path with a soft edge, instead of a hard
+            // canvas.clipPath() that visibly slices edge icons during the folder animation.
+            int count = canvas.saveLayer(null, null);
             mFocusIndicatorHelper.draw(canvas);
             super.dispatchDraw(canvas);
+            canvas.drawPath(mClipPath, FolderClipShader.PAINT);
             canvas.restoreToCount(count);
         } else {
             mFocusIndicatorHelper.draw(canvas);
